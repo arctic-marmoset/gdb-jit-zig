@@ -4,24 +4,30 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const exe = b.addExecutable(.{
+    const jit = b.addExecutable(.{
         .name = "jit",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = .{ .path = "jit/main.zig" },
         .target = target,
         .optimize = optimize,
     });
-    b.installArtifact(exe);
+    b.installArtifact(jit);
 
-    const run_cmd = b.addRunArtifact(exe);
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
+    const reader = b.addSharedLibrary(.{
+        .name = "reader",
+        .root_source_file = .{ .path = "reader/interface.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    reader.linkLibC();
+    reader.addModule("jit", b.createModule(.{
+        .source_file = .{ .path = "jit/jit.zig" },
+    }));
+    b.installArtifact(reader);
+
+    jit.step.dependOn(&reader.step);
 
     const unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = .{ .path = "jit/main.zig" },
         .target = target,
         .optimize = optimize,
     });
